@@ -1,0 +1,24 @@
+runtime: python27
+api_version: 1
+threadsafe: true
+
+handlers:
+- url: /bootstrap
+  static_dir: bootstrap
+
+- url: /.*
+  script: nespricetracker.application
+  login: admin
+  secure: always
+
+env_variables:
+  CLOUDSQL_CONNECTION_NAME: yarin-nes-sales:europe-west1:nes-data
+  CLOUDSQL_USER: root
+
+libraries:
+- name: webapp2
+  version: latest
+- name: jinja2
+  version: latest
+- name: MySQLdb
+  version: latest

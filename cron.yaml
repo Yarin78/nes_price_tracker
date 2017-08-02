@@ -1,0 +1,7 @@
+cron:
+- description: Tradera crawl (active)
+  url: /crawl?itemStatus=Active&q=NES+SCN
+  schedule: every 12 hours
+- description: daily Tradera crawl (ended)
+  url: /crawl?itemStatus=Ended&q=NES+SCN
+  schedule: every 24 hours
