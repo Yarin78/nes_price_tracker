@@ -18,7 +18,8 @@ def connect():
         db = MySQLdb.connect(
             unix_socket=cloudsql_unix_socket,
             user=CLOUDSQL_USER,
-            db='nes_data')
+            db='nes_data',
+            charset='utf8')
 
     # If the unix socket is unavailable, then try to connect using TCP. This
     # will work if you're running a local MySQL server or using the Cloud SQL
@@ -27,6 +28,6 @@ def connect():
     #   $ cloud_sql_proxy -instances=your-connection-name=tcp:3306
     #
     else:
-        db = MySQLdb.connect(host='127.0.0.1', user=CLOUDSQL_USER, db='nes_data')
+        db = MySQLdb.connect(host='127.0.0.1', user=CLOUDSQL_USER, db='nes_data', charset='utf8')
 
     return db

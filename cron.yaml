@@ -5,3 +5,6 @@ cron:
 - description: daily Tradera crawl (ended)
   url: /crawl?itemStatus=Ended&q=NES+SCN
   schedule: every 24 hours
+- description: Autoclassify
+  url: /auto_classify_duplicates
+  schedule: every 3 hours

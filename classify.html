@@ -1,0 +1,48 @@
+<html>
+
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="jquery/jquery-ui.min.css">
+  </head>
+
+  <body>
+    <form action="/classify" method="post">
+      <table>
+        <tbody>
+          {% for item in items %}
+          <tr>
+            <td>
+              <h2>{{ item.title }}</h2>
+              <p>{{ item.content }}
+              <p>
+                <table>
+                  <tr><td>Game</td><td><input size="30" class="game" name="item[{{item.id}}][game_title]" value="{{ item.game_title }}"/></td></tr>
+                  <tr><td>Multiple</td><td><input type="checkbox" name="item[{{item.id}}][multi]" {% if item.multi %}checked{% endif %}/></td></tr>
+                  <tr><td>Contains cartridge</td><td><input type="checkbox" name="item[{{item.id}}][cartridge]" {% if item.cartridge %}checked{% endif %}/></td></tr>
+                  <tr><td>Contains manual</td><td><input type="checkbox" name="item[{{item.id}}][manual]" {% if item.manual %}checked{% endif %}/></td></tr>
+                  <tr><td>Contains box</td><td><input type="checkbox" name="item[{{item.id}}][box]" {% if item.box %}checked{% endif %}/></td></tr>
+                  <tr><td>Comment</td><td><input size="50" name="item[{{item.id}}][comment]" value="{{ item.comment }}"/></td></tr>
+                </table>
+            </td>
+            <td><a href="{{ item.url }}" target="_blank"><img src="{{ item.image_url }}"/></a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <input type="submit"/>
+    </form>
+
+    <script type="text/javascript" src="/jquery/jquery.js"></script>
+    <script type="text/javascript" src="/jquery/jquery-ui.min.js"></script>
+
+    <script>
+      $('input.game').autocomplete({
+        {% autoescape off %}
+        source: {{ all_games }}
+        {% endautoescape %}
+      });
+    </script>
+
+  </body>
+
+</html>
