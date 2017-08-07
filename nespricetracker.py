@@ -17,19 +17,46 @@ class MainPage(webapp2.RequestHandler):
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('Nothing to see here!')
 
+def classify_duplicates():
+    db = nes_db.connect()
+    cursor = db.cursor()
+
+    result = cursor.execute("""update tradera_items as t1
+        inner join tradera_items as t2 on t1.title=t2.title and t1.seller=t2.seller
+        set t1.game_id=t2.game_id,
+        t1.multi=t2.multi,
+        t1.cartridge=t2.cartridge,
+        t1.box=t2.box,
+        t1.manual=t2.manual,
+        t1.verified=t2.verified,
+        t1.comment=t2.comment
+        where coalesce(t1.verified,0)=0 and t2.verified=1;""")
+    db.commit()
+    return result
+
 class ClassifyPage(webapp2.RequestHandler):
     def get(self):
         db = nes_db.connect()
         cursor = db.cursor()
+        cursor.execute("SELECT count(*) FROM tradera_items AS t WHERE t.verified IS NULL OR t.verified=0;")
+        total_items = cursor.fetchone()[0]
+        cursor.execute("SELECT count(DISTINCT title, seller) FROM tradera_items AS t WHERE t.verified IS NULL OR t.verified=0;")
+        unique_items = cursor.fetchone()[0]
+
         cursor.execute("""
-            SELECT t.id, t.title, url, image_url, content, coalesce(g.title, '') as game_title,
+            SELECT t.id, t.title, t.seller, url, image_url, content, coalesce(g.title, '') as game_title,
                 t.multi = 1, coalesce(t.cartridge, 1) = 1, t.manual = 1, t.box = 1, coalesce(t.comment, '')
             FROM tradera_items AS t
             LEFT JOIN games AS g ON t.game_id=g.id
             WHERE t.verified IS NULL OR t.verified=0
             ORDER BY id LIMIT 10""")
         items = []
-        for (id, title, url, image_url, content, game_title, multi, cartridge, manual, box, comment) in cursor.fetchall():
+        seen=set()
+        for (id, title, seller, url, image_url, content, game_title, multi, cartridge, manual, box, comment) in cursor.fetchall():
+            ts = "%s: %s" % (seller, title)
+            if ts in seen:
+                continue
+            seen.add(ts)
             items.append({
                 'id': id,
                 'title': title,
@@ -48,7 +75,9 @@ class ClassifyPage(webapp2.RequestHandler):
 
         template_values = {
             'items' : items,
-            'all_games' : games
+            'all_games' : games,
+            'total_items' : total_items,
+            'unique_total_items' : unique_items
         }
 
         path = os.path.join(os.path.dirname(__file__), 'classify.html')
@@ -103,29 +132,16 @@ class ClassifyPage(webapp2.RequestHandler):
             item_cnt += 1
 
         db.commit()
+        duplicates = classify_duplicates()
 
         self.response.headers['Content-Type'] = 'text/html'
-        self.response.out.write('<html><body><p>Updated %d items!<p><a href="/classify">Classify more</a></body></html>' % item_cnt)
+        self.response.out.write('<html><body><p>Updated %d items and %d duplicates!<p><a href="/classify">Classify more</a></body></html>' % (item_cnt, duplicates))
 
 class AutoClassifyDuplicates(webapp2.RequestHandler):
     def get(self):
-        db = nes_db.connect()
-        cursor = db.cursor()
-
-        result = cursor.execute("""update tradera_items as t1
-inner join tradera_items as t2 on t1.title=t2.title and t1.seller=t2.seller
-set t1.game_id=t2.game_id,
-	t1.multi=t2.multi,
-    t1.cartridge=t2.cartridge,
-    t1.box=t2.box,
-    t1.manual=t2.manual,
-    t1.verified=t2.verified,
-    t1.comment=t2.comment
-where coalesce(t1.verified,0)=0 and t2.verified=1;""")
-        db.commit()
+        result = classify_duplicates()
         self.response.headers['Content-Type'] = 'text/plain'
         self.response.out.write('%d duplicates classified' % result)
-
 
 class TraderaSearchCrawler(webapp2.RequestHandler):
     def get(self):
