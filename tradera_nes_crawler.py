@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 
 from bs4 import BeautifulSoup
-import urllib, urllib2, urlparse
+import requests
+from requests.exceptions import RequestException
 import os, os.path
 import re
+from urllib.parse import urljoin
 #import locale
 from datetime import datetime
 import logging
@@ -20,27 +22,23 @@ def extract_search_result(soup):
 
     for item in soup.find_all('li', 'item-card'):
         item_id = item['data-item-id']
-        item_url = urlparse.urljoin(TRADERA_URL, item['data-item-url'])
+        item_url = urljoin(TRADERA_URL, item['data-item-url'])
         items.append((item_id, item_url))
 
     next_tag = soup.find('li','search-pagination-next')
     next_page_url = None
     if next_tag:
-        next_page_url = urlparse.urljoin(TRADERA_URL, next_tag.a['href'])
+        next_page_url = urljoin(TRADERA_URL, next_tag.a['href'])
 
     return (next_page_url, items)
 
 def search_tradera(query_params):
-    query_string = urllib.urlencode(query_params)
-    url = '%s/search?%s' % (TRADERA_URL, query_string)
-
-    logging.info('Fetching url %s' % url)
-
     try:
-        result = urllib2.urlopen(url)
-        content = result.read()
-    except urllib2.URLError:
-        logging.exception('Caught exception fetching url')
+        r = requests.get('%s/search' % TRADERA_URL, query_params)
+        r.raise_for_status()
+        content = r.text
+    except RequestException:
+        logging.exception('Caught exception searching tradera')
         content = ''
 
     soup = BeautifulSoup(content, 'html.parser')
@@ -48,10 +46,11 @@ def search_tradera(query_params):
 
 def search_tradera_next(url):
     try:
-        result = urllib2.urlopen(url)
-        content = result.read()
-    except urllib2.URLError:
-        logging.exception('Caught exception fetching url')
+        r = requests.get(url)
+        r.raise_for_status()
+        content = r.text
+    except RequestException:
+        logging.exception('Caught exception searching tradera')
         content = ''
 
     soup = BeautifulSoup(content, 'html.parser')
@@ -78,20 +77,25 @@ def extract_price(price_str):
     stripped = price_str.replace('kr', '')
     pattern = re.compile(r'[\s\xa0]+') # Thousand separators may become \xa0
     stripped = re.sub(pattern, '', stripped)
-    #print 'Extracting price from string "%s" to "%s"' % (price_str, stripped)
+    logging.debug('Extracting price from string "%s" to "%s"' % (price_str, stripped))
     return int(stripped)
 
 
 def extract_ongoing_auction_item(soup):
     title = soup.find('header', 'view-item-details-header').h1.string
 
-    image_url = urlparse.urljoin(TRADERA_URL, soup.find('article','image-gallery').img['src'])
+    image_url = urljoin(TRADERA_URL, soup.find('article',id='vip-image-gallery').img['src'])
 
     article=soup.find('article', 'view-item-details-wrapper')
 
     fixed_price_tag = article.find('h2', 'view-item-fixed-price')
+    after_discount_tag = article.find('h2', 'view-item-price-after-discount')
     if fixed_price_tag:
         price = extract_price(fixed_price_tag.string)
+        end_date = None
+        bids = 0
+    elif after_discount_tag:
+        price = extract_price(after_discount_tag.string)
         end_date = None
         bids = 0
     else:
@@ -105,7 +109,12 @@ def extract_ongoing_auction_item(soup):
         if bids > 0:
             price = extract_price(article.find('span', 'view-item-bidding-details-amount').span.string)
         else:
-            price = extract_price(article.find('span', 'view-item-bidding-details-heading').next_sibling.string)
+            heading = article.find('span', 'view-item-bidding-details-heading')
+            price = -1
+            for sibling in heading.next_siblings:
+                if sibling.string.strip():
+                    price = extract_price(sibling.string.strip())
+                    break
 
     shipping = ' '.join([x.strip() for x in list(soup.find('ul', 'view-item-details-shipping-details-options-list').strings)]).strip()
 
@@ -137,7 +146,7 @@ def extract_finished_auction_item(soup):
     article=soup.find('article','view-item-ended-summary')
 
     title = article.h2.string
-    image_url = urlparse.urljoin(TRADERA_URL, article.img['src'])
+    image_url = urljoin(TRADERA_URL, article.img['src'])
 
     finished_tag = article.find('span', string='Avslutad')
     if finished_tag:
@@ -254,16 +263,17 @@ def crawl_item(url):
     try:
         # Remove any non-ASCII characters in the URI. Seems to work well enough.
         clean_url = re.sub(r'[^\x00-\x7F]+','', url)
-        result = urllib2.urlopen(clean_url)
-        content = result.read().decode('utf-8')
-    except urllib2.URLError:
-        logging.exception('Caught exception fetching URL %s' % url)
+        r = requests.get(clean_url)
+        r.raise_for_status()
+    except RequestException:
+        logging.exception('Exception fetching URL %s' % url)
         return
 
-    soup = BeautifulSoup(content, 'html.parser')
+    soup = BeautifulSoup(r.text, 'html.parser')
     data = extract_item(soup)
     data['url'] = url
     save_item(data)
+
 
 def test_crawl_items():
     crawl_item('http://www.tradera.com/item/300801/284299979/megaman-3-nes-scn-')
@@ -274,10 +284,11 @@ def test_crawl_items():
 def test_extract_item():
     for x in ['finished_auction', 'finished_no_winner', 'ongoing_auction', 'ongoing_auction2', 'ongoing_fixed_price']:
         f=open('examples/%s.html' % x)
-        print extract_item(BeautifulSoup(f.read(), 'html.parser'))
+        print(extract_item(BeautifulSoup(f.read(), 'html.parser')))
 
 
-#crawl_item('http://www.tradera.com/item/300813/286835828/super-mario-bros-nes-scn')
+#crawl_item('https://www.tradera.com/item/300813/339270493/little-nemo-dream-master-nes')
+#crawl_item('https://www.tradera.com/item/300801/287301225/rad-gravity-nintendo-8-bit-nes')
 #crawl_item('http://www.tradera.com/item/300810/284744630/yoshis-cookie-nes-scn-cib')
 #crawl_item('http://www.tradera.com/item/300810/286878928/robowarrior-scn-svensksalt-nes')
 #crawl_item('http://www.tradera.com/item/300806/284644656/nintendo-entertainment-system-nes-scn')
@@ -285,5 +296,5 @@ def test_extract_item():
 
 #test_extract_item()
 
-#print search_tradera()
-#print search_tradera_next('http://www.tradera.com/search?itemType=All&itemCondition=All&sellerType=All&sortBy=Relevance&priceRange=All&itemStatus=Ended&county=HelaSverige&q=NES+SCN&queryScope=AllWordsAnyOrder&paging=MjpTaG9wSXRlbXw0OHw2NTM.&spage=2')
+#print(search_tradera({'itemStatus':'Active', 'q':'NES+SCN'}))
+#print(search_tradera_next('http://www.tradera.com/search?itemStatus=Active&q=NES%2bSCN&paging=MjpBdWN0aW9ufDM5fDY3NTpTaG9wSXRlbXw5fDQwNzY.&spage=2'))

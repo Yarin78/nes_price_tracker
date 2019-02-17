@@ -1,26 +1,13 @@
-runtime: python27
-api_version: 1
-threadsafe: true
+runtime: python37
 
 handlers:
-- url: /jquery
-  static_dir: jquery
-- url: /jquery/images
-  static_dir: jquery/images
+- url: /static
+  static_dir: static
 
 - url: /.*
-  script: nespricetracker.application
-  login: admin
+  script: auto
   secure: always
 
 env_variables:
-  CLOUDSQL_CONNECTION_NAME: yarin-nes-sales:europe-west1:nes-data
-  CLOUDSQL_USER: root
-
-libraries:
-- name: webapp2
-  version: latest
-- name: jinja2
-  version: latest
-- name: MySQLdb
-  version: latest
+  CLOUD_SQL_CONNECTION_NAME: yarin-nes-sales:europe-west1:nes-data
+  CLOUD_SQL_USERNAME: root

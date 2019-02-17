@@ -2,10 +2,11 @@
 
   <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="jquery/jquery-ui.min.css">
+    <link rel="stylesheet" href="static/jquery/jquery-ui.min.css">
   </head>
 
   <body>
+    <h1>NES classifier</h1>
     <p>{{ total_items }} items to classify, of which {{ unique_total_items }} are unique.</p>
     <form action="/classify" method="post">
       <table>
@@ -33,8 +34,8 @@
       <input type="submit"/>
     </form>
 
-    <script type="text/javascript" src="/jquery/jquery.js"></script>
-    <script type="text/javascript" src="/jquery/jquery-ui.min.js"></script>
+    <script type="text/javascript" src="/static/jquery/jquery.js"></script>
+    <script type="text/javascript" src="/static/jquery/jquery-ui.min.js"></script>
 
     <script>
       $('input.game').autocomplete({
